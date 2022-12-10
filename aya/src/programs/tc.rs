@@ -3,7 +3,7 @@ use thiserror::Error;
 
 use std::{
     ffi::{CStr, CString},
-    io,
+    io, os::unix::prelude::RawFd,
 };
 
 use crate::{
@@ -17,6 +17,8 @@ use crate::{
     },
     util::{ifindex_from_ifname, tc_handler_make},
 };
+
+use super::links::{FdLink, LinkError};
 
 /// Traffic control attach type.
 #[derive(Debug, Clone, Copy, Hash, Eq, PartialEq)]
@@ -170,6 +172,7 @@ impl SchedClassifier {
             attach_type,
             priority,
             handle,
+            fd: prog_fd,
         }))
     }
 
@@ -193,7 +196,7 @@ impl SchedClassifier {
 }
 
 #[derive(Debug, Hash, Eq, PartialEq)]
-pub(crate) struct TcLinkId(i32, TcAttachType, u16, u32);
+pub(crate) struct TcLinkId(i32, TcAttachType, u16, u32, RawFd);
 
 #[derive(Debug)]
 struct TcLink {
@@ -201,13 +204,14 @@ struct TcLink {
     attach_type: TcAttachType,
     priority: u16,
     handle: u32,
+    fd: RawFd,
 }
 
 impl Link for TcLink {
     type Id = TcLinkId;
 
     fn id(&self) -> Self::Id {
-        TcLinkId(self.if_index, self.attach_type, self.priority, self.handle)
+        TcLinkId(self.if_index, self.attach_type, self.priority, self.handle, self.fd)
     }
 
     fn detach(self) -> Result<(), ProgramError> {
@@ -216,6 +220,15 @@ impl Link for TcLink {
         }
         .map_err(|io_error| TcError::NetlinkError { io_error })?;
         Ok(())
+    }
+}
+
+impl TryFrom<SchedClassifierLink> for FdLink {
+    type Error = LinkError;
+
+    fn try_from(value: SchedClassifierLink) -> Result<Self, Self::Error> {
+        // TODO: return error if fd is not set. Can it be not set?
+        Ok(FdLink::new(value.0.fd))
     }
 }
 

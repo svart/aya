@@ -82,7 +82,7 @@ impl<T: Link> Drop for LinkMap<T> {
 pub struct FdLinkId(pub(crate) Option<RawFd>);
 
 /// A file descriptor link.
-#[derive(Debug)]
+#[derive(Debug, Hash, Eq, PartialEq)]
 pub struct FdLink {
     pub(crate) fd: Option<RawFd>,
 }
